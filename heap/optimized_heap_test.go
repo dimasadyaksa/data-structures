@@ -159,7 +159,7 @@ func TestCustomGrowthFunc(t *testing.T) {
 		return currentCap * 2
 	}
 
-	h, _ := NewOptimizedMinHeap[int] (WithGrowthFunction[int](doubleGrowthFunc), WithCapacity[int](2, true))
+	h, _ := NewOptimizedMinHeap[int](WithGrowthFunction[int](doubleGrowthFunc), WithCapacity[int](2, true))
 
 	h.Insert(10)
 	h.Insert(20)
@@ -207,43 +207,31 @@ func BenchmarkOptimizedHeap_Extract(b *testing.B) {
 	}
 }
 
-func BenchmarkHeapInsertAlloc(b *testing.B) {
-	sizes := []int{1024, 10240, 102400}
-
-	for _, n := range sizes {
-		b.Run(fmt.Sprintf("DefaultCap_N=%d", n), func(b *testing.B) {
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b })
-				for j := 0; j < n; j++ {
-					h.Insert(j)
-				}
-			}
-		})
-
-		b.Run(fmt.Sprintf("PreallocCap_N=%d", n), func(b *testing.B) {
-			b.ReportAllocs()
-			h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b }, WithCapacity[int](n, true))
-			for i := 0; i < b.N; i++ {
-				// fresh heap with preallocated slice
-				h, _ = NewOptimizedHeap[int](func(a, b int) bool { return a < b }, WithCapacity[int](n, true))
-				for j := 0; j < n; j++ {
-					h.Insert(j)
-				}
-			}
-		})
+func BenchmarkOptimizedHeap_InsertNoPrealloc(b *testing.B) {
+	h, _ := NewOptimizedHeap[int](lessInt)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Insert(i)
 	}
 }
 
-func BenchmarkEagerHeapInsertAndExtract(b *testing.B) {
-	for n := 1; n <= 1<<12; n <<= 1 {
+func BenchmarkOptimizedHeap_InsertPrealloc(b *testing.B) {
+	h, _ := NewOptimizedHeap[int](lessInt, WithCapacity[int](b.N, true))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.Insert(i)
+	}
+}
+
+func BenchmarkOptimizedHeapInsertAndExtract(b *testing.B) {
+	for n := 1 << 7; n <= 1<<15; n <<= 1 {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b }, WithCapacity[int](b.N, true))
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b })
-				for j := 0; j < n; j++ {
-					h.Insert(j)
-				}
-				for j := 0; j < n; j++ {
+				if i%2 == 0 {
+					h.Insert(i)
+				} else {
 					h.Extract()
 				}
 			}
@@ -252,14 +240,14 @@ func BenchmarkEagerHeapInsertAndExtract(b *testing.B) {
 }
 
 func BenchmarkLazyHeapInsertAndExtract(b *testing.B) {
-	for n := 1; n <= 1<<12; n <<= 1 {
+	for n := 1 << 7; n <= 1<<15; n <<= 1 {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b }, WithCapacity[int](b.N, true), UseLazyHeapification[int]())
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b }, UseLazyHeapification[int]())
-				for j := 0; j < n; j++ {
-					h.Insert(j)
-				}
-				for j := 0; j < n; j++ {
+				if i < b.N/2 {
+					h.Insert(i)
+				} else {
 					h.Extract()
 				}
 			}
@@ -268,16 +256,15 @@ func BenchmarkLazyHeapInsertAndExtract(b *testing.B) {
 }
 
 func BenchmarkMixedWorkloadEagerHeap(b *testing.B) {
-	for n := 1 << 6; n <= 1<<12; n <<= 1 {
+	for n := 1 << 7; n <= 1<<15; n <<= 1 {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b }, WithCapacity[int](b.N, true))
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b })
-				for j := 0; j < n; j++ {
-					if rand.Float64() < 0.7 {
-						h.Insert(rand.Int())
-					} else {
-						h.Extract()
-					}
+				if float64(i) < 0.7*float64(b.N) {
+					h.Insert(rand.Int())
+				} else {
+					h.Extract()
 				}
 			}
 		})
@@ -285,16 +272,15 @@ func BenchmarkMixedWorkloadEagerHeap(b *testing.B) {
 }
 
 func BenchmarkMixedWorkloadLazyHeap(b *testing.B) {
-	for n := 1 << 6; n <= 1<<12; n <<= 1 {
+	for n := 1 << 7; n <= 1<<15; n <<= 1 {
 		b.Run(fmt.Sprintf("N=%d", n), func(b *testing.B) {
+			h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b }, WithCapacity[int](b.N, true), UseLazyHeapification[int]())
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				h, _ := NewOptimizedHeap[int](func(a, b int) bool { return a < b }, UseLazyHeapification[int]())
-				for j := 0; j < n; j++ {
-					if rand.Float64() < 0.7 {
-						h.Insert(rand.Int())
-					} else {
-						h.Extract()
-					}
+				if float64(i) < 0.7*float64(b.N) {
+					h.Insert(rand.Int())
+				} else {
+					h.Extract()
 				}
 			}
 		})
