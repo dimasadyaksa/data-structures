@@ -78,7 +78,7 @@ func main() {
 
 ## OptimizedHeap
 
-`OptimizedHeap` is an advanced heap implementation with configurable capacity, growth strategy, and optional lazy heapification for bulk inserts.
+`OptimizedHeap` is an advanced heap implementation with configurable capacity, growth strategy, and optional lazy heapification for faster inserts.
 
 ### Features
 
